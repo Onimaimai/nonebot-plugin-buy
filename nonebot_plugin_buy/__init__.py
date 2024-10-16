@@ -12,9 +12,9 @@ from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata
 
 __plugin_meta__ = PluginMetadata(
-    name="团购 help",
+    name="团购",
     description="群内拼团和活动人员记录",
-    usage="开团、拼团、查团、复团、删团",
+    usage="发送 团购 help 查看帮助",
     type="application",
     homepage="https://github.com/Onimaimai/nonebot-plugin-buy",
 )
