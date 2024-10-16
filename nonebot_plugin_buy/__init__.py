@@ -17,7 +17,7 @@ __plugin_meta__ = PluginMetadata(
     description="群内拼团和活动人员记录",
     usage="开团、拼团、查团、复团、删团",
     type="application",
-    homepage="https://github.com/Onimaimai/nonebot_plugin_buy",
+    homepage="https://github.com/Onimaimai/nonebot-plugin-buy",
 )
 
 @scheduler.scheduled_job("cron", hour=13, minute=0)
