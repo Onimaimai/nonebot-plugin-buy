@@ -80,6 +80,6 @@ _✨ NoneBot 拼团活动插件 ✨_
 | 删团 <名称> | 主人、群管 | 否 | 群聊 
 | 团购列表 | 群员 | 否 | 群聊 
 ### 效果图
-![Uploading 1.jpg…]()
+![1](https://github.com/user-attachments/assets/06f2fa74-7272-49a2-bb9c-ca6325dcabc5)
 
 
