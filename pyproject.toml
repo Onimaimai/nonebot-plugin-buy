@@ -17,7 +17,7 @@ dependencies = [
     "nonebot2",
     "nonebot-adapter-onebot",
     "nonebot-plugin-apscheduler",
-    "apscheduler"
+    "apscheduler",
     "pydantic",
 ]
 
