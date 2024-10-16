@@ -1,7 +1,6 @@
 import json
 import os
-from nonebot_plugin_apscheduler import scheduler
-from nonebot import get_bot
+from nonebot import get_bot, require
 import datetime
 from nonebot import on_command
 from nonebot.adapters.onebot.v11 import Bot, Event
@@ -20,6 +19,7 @@ __plugin_meta__ = PluginMetadata(
     homepage="https://github.com/Onimaimai/nonebot-plugin-buy",
 )
 
+scheduler = require("nonebot_plugin_apscheduler").scheduler
 @scheduler.scheduled_job("cron", hour=13, minute=0)
 async def send_groupbuy_status():
     bot = get_bot()
