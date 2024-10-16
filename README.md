@@ -80,4 +80,5 @@ _✨ NoneBot 拼团活动插件 ✨_
 | 删团 <名称> | 主人、群管 | 否 | 群聊 
 | 团购列表 | 群员 | 否 | 群聊 
 ### 效果图
-![alt text](deef988b3dc366dda8eb71c317315061_720.jpg)
+![7406ce48a15dfccb0280a2f7c47ee0a2](https://github.com/user-attachments/assets/c128dc7e-404b-453a-b1e8-921eb196057e)
+
