@@ -16,6 +16,7 @@ __plugin_meta__ = PluginMetadata(
     description="群内拼团和活动人员记录",
     usage="发送 团购 help 查看帮助",
     type="application",
+    supported_adapters={"~onebot.v11"},
     homepage="https://github.com/Onimaimai/nonebot-plugin-buy",
 )
 
