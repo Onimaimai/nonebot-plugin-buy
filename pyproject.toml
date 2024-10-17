@@ -14,10 +14,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "nonebot2",
-    "nonebot-adapter-onebot",
-    "nonebot-plugin-apscheduler",
-    "pydantic",
+    "nonebot2>=2.2.0",
+    "nonebot-adapter-onebot>=2.1.5",
+    "nonebot-plugin-apscheduler>=0.4.0",
 ]
 
 [project.urls]
