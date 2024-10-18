@@ -1,6 +1,12 @@
 import json
 import os
+from pathlib import Path
 from nonebot import get_bot, require
+
+require("nonebot_plugin_localstore")
+
+import nonebot_plugin_localstore as store
+
 import datetime
 from nonebot import on_command
 from nonebot.adapters.onebot.v11 import Bot, Event
@@ -51,46 +57,45 @@ async def send_groupbuy_status():
                 print(f"发送群 {group_id} 状态消息失败：{e}")
 
 
+plugin_data_dir: Path = store.get_plugin_data_dir()
 # 文件路径
-data_dir = "data/buy"
-data_file = os.path.join(data_dir, "groupbuy_data.json")
-activity_file = os.path.join(data_dir, "activity_data.json")
+GROUPBUY_DATA_FILE = Path = store.get_plugin_data_file("groupbuy_data.json")
+ACTIVITY_DATA_FILE = Path = store.get_plugin_data_file("activity_data.json")
 
-# 确保数据文件夹存在
-os.makedirs(data_dir, exist_ok=True)
 
 # 创建文件（如果不存在）
-for file_path in [data_file, activity_file]:
-    if not os.path.exists(file_path):
-        with open(file_path, 'w') as f:
-            f.write('{}')
+for file_path in [GROUPBUY_DATA_FILE, ACTIVITY_DATA_FILE]:
+    if not file_path.exists():
+        file_path.write_text('{}', encoding='utf-8')
             
 
 # 加载团购数据
 def load_data():
     try:
-        with open(data_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        with GROUPBUY_DATA_FILE.open('r', encoding='utf-8') as file:
+            data = json.load(file)
+            return data if data else {}
     except FileNotFoundError:
         return {}
 
 # 保存团购数据
 def save_data(data):
-    with open(data_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    with GROUPBUY_DATA_FILE.open('w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
 
 # 加载活动数据
 def load_activity_data():
     try:
-        with open(activity_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        with ACTIVITY_DATA_FILE.open('r', encoding='utf-8') as file:
+            data = json.load(file)
+            return data if data else {}
     except FileNotFoundError:
         return {}
 
 # 保存活动数据
 def save_activity_data(data):
-    with open(activity_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    with ACTIVITY_DATA_FILE.open('w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
         
         
 groupbuy_help = on_command("团购 help", aliases={"groupbuyhelp"}, priority=5)
@@ -144,7 +149,7 @@ async def handle_add_groupbuy(bot: Bot, event: Event, state: T_State, args: Mess
         "total_amount": 0
     }
 
-    save_data(data)
+    save_data(data)(data)
     await add_groupbuy.finish(f"'{project_name}' 开团成功，成团金额为 {target_amount} 元！")
 
 
@@ -175,7 +180,7 @@ async def handle_participate_groupbuy(bot: Bot, event: Event, state: T_State, ar
         if user_id in project['participants']:
             project['total_amount'] -= project['participants'][user_id]['amount']
             del project['participants'][user_id]
-            save_data(data)
+            save_data(data)(data)
             await participate_groupbuy.finish(f"{nickname} 已从团购 '{project_name}' 中移除！")
         else:
             await participate_groupbuy.finish(f"{nickname} 未参与团购 '{project_name}'！")
@@ -201,7 +206,7 @@ async def handle_participate_groupbuy(bot: Bot, event: Event, state: T_State, ar
         else:
             await participate_groupbuy.send(f"{nickname} 参与了团购 '{project_name}'，当前金额为 {project['total_amount']} 元。")
 
-        save_data(data)
+        save_data(data)(data)
 
 
 reset_groupbuy = on_command("重置团购", aliases={"复团"}, priority=5, permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER)
@@ -229,7 +234,7 @@ async def handle_reset_groupbuy(bot: Bot, event: Event, state: T_State, args: Me
         "total_amount": 0
     }
 
-    save_data(data)
+    save_data(data)(data)
     await reset_groupbuy.finish(f"团购 '{project_name}' 已重置！")
 
 # Delete a group-buying project
@@ -255,7 +260,7 @@ async def handle_delete_groupbuy(bot: Bot, event: Event, state: T_State, args: M
     if not data[group_id]:
         del data[group_id]
 
-    save_data(data)
+    save_data(data)(data)
     await delete_groupbuy.finish(f"团购 '{project_name}' 已删除！")
 
 list_groupbuy = on_command("团购列表", aliases={"团表"}, priority=5)
