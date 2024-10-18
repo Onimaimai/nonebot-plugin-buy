@@ -68,7 +68,6 @@ for file_path in [GROUPBUY_DATA_FILE, ACTIVITY_DATA_FILE]:
     if not file_path.exists():
         file_path.write_text('{}', encoding='utf-8')
             
-
 # 加载团购数据
 def load_data():
     try:
