@@ -9,7 +9,7 @@
 
 # nonebot-plugin-buy
 
-_✨ NoneBot 拼团活动插件 ✨_
+_✨ NoneBot 拼团活动记录插件 ✨_
 
 
 <a href="./LICENSE">
