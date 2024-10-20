@@ -19,7 +19,7 @@ from nonebot.plugin import PluginMetadata
 
 __plugin_meta__ = PluginMetadata(
     name="团购",
-    description="群内拼团和活动人员记录",
+    description="群内拼团和活动记录",
     usage="发送 团购 help 查看帮助",
     type="application",
     supported_adapters={"~onebot.v11"},
