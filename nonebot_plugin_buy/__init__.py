@@ -9,18 +9,34 @@ import nonebot_plugin_localstore as store
 
 import datetime
 from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot, Event
+from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment
 from nonebot.permission import SUPERUSER
 from nonebot.adapters.onebot.v11.permission import GROUP_ADMIN, GROUP_OWNER
 from nonebot.typing import T_State
 from nonebot.adapters import Message
 from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata
+from nonebot import on_message
 
 __plugin_meta__ = PluginMetadata(
     name="团购",
     description="群内拼团和活动记录",
-    usage="发送 团购 help 查看帮助",
+    usage=
+        "开团 <名称> <成团金额>\n"
+        "拼团 <名称> <参与金额>\n"
+        "查团 <名称>\n"
+        "复团 <名称>\n"
+        "删团 <名称>\n"
+        "团购列表\n"
+        "已付款 <团购名称> [附带付款截图]\n"
+        "设置付款 <团购名称> <用户QQ号> <已付款/未付款> [管理员]\n\n"
+        "添加活动 <名称>\n"
+        "参加活动 <名称>\n"
+        "退出活动 <名称>\n"
+        "查询活动 <名称>\n"
+        "重置活动 <名称>\n"
+        "删除活动 <名称>\n"
+        "活动列表",
     type="application",
     supported_adapters={"~onebot.v11"},
     homepage="https://github.com/Onimaimai/nonebot-plugin-buy",
@@ -108,7 +124,9 @@ async def handle_groupbuy_help(bot: Bot, event: Event):
         "查团 <名称>\n"
         "复团 <名称>\n"
         "删团 <名称>\n"
-        "团购列表\n\n"
+        "团购列表\n"
+        "已付款 <团购名称> [附带付款截图]\n"
+        "设置付款 <团购名称> <用户QQ号> <已付款/未付款> [管理员]\n\n"
         "添加活动 <名称>\n"
         "参加活动 <名称>\n"
         "退出活动 <名称>\n"
@@ -145,10 +163,11 @@ async def handle_add_groupbuy(bot: Bot, event: Event, state: T_State, args: Mess
     data[group_id][project_name] = {
         "target_amount": target_amount,
         "participants": {},
-        "total_amount": 0
+        "total_amount": 0,
+        "is_completed": False
     }
 
-    save_data(data)(data)
+    save_data(data)
     await add_groupbuy.finish(f"'{project_name}' 开团成功，成团金额为 {target_amount} 元！")
 
 
@@ -175,11 +194,15 @@ async def handle_participate_groupbuy(bot: Bot, event: Event, state: T_State, ar
 
     project = data[group_id][project_name]
 
+    if project.get('is_completed', False):
+        await participate_groupbuy.finish(f"团购 '{project_name}' 已成团，无法修改金额！")
+        return
+
     if amount == 0:
         if user_id in project['participants']:
             project['total_amount'] -= project['participants'][user_id]['amount']
             del project['participants'][user_id]
-            save_data(data)(data)
+            save_data(data)
             await participate_groupbuy.finish(f"{nickname} 已从团购 '{project_name}' 中移除！")
         else:
             await participate_groupbuy.finish(f"{nickname} 未参与团购 '{project_name}'！")
@@ -190,14 +213,16 @@ async def handle_participate_groupbuy(bot: Bot, event: Event, state: T_State, ar
         project['participants'][user_id] = {
             "nickname": nickname,
             "user_id": user_id,
-            "amount": amount
+            "amount": amount,
+            "paid": False
         }
         project['total_amount'] += amount
 
         if project['total_amount'] == project['target_amount']:
+            project['is_completed'] = True
             participant_list = "\n".join(
                 [f"{p['nickname']}\n({p['user_id']})：{p['amount']}元" for p in project['participants'].values()])
-            await participate_groupbuy.send(f"团购 '{project_name}' 已成团！参与成员：\n{participant_list}")
+            await participate_groupbuy.send(f"团购 '{project_name}' 已成团！参与成员：\n{participant_list}\n\n请参与成员发送\"已付款\"并附带付款截图进行登记。")
         elif project['total_amount'] > project['target_amount']:
             project['total_amount'] -= amount
             del project['participants'][user_id]
@@ -205,7 +230,7 @@ async def handle_participate_groupbuy(bot: Bot, event: Event, state: T_State, ar
         else:
             await participate_groupbuy.send(f"{nickname} 参与了团购 '{project_name}'，当前金额为 {project['total_amount']} 元。")
 
-        save_data(data)(data)
+        save_data(data)
 
 
 reset_groupbuy = on_command("重置团购", aliases={"复团"}, priority=5, permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER)
@@ -230,10 +255,11 @@ async def handle_reset_groupbuy(bot: Bot, event: Event, state: T_State, args: Me
     data[group_id][project_name] = {
         "target_amount": target_amount,
         "participants": {},
-        "total_amount": 0
+        "total_amount": 0,
+        "is_completed": False
     }
 
-    save_data(data)(data)
+    save_data(data)
     await reset_groupbuy.finish(f"团购 '{project_name}' 已重置！")
 
 # Delete a group-buying project
@@ -259,7 +285,7 @@ async def handle_delete_groupbuy(bot: Bot, event: Event, state: T_State, args: M
     if not data[group_id]:
         del data[group_id]
 
-    save_data(data)(data)
+    save_data(data)
     await delete_groupbuy.finish(f"团购 '{project_name}' 已删除！")
 
 list_groupbuy = on_command("团购列表", aliases={"团表"}, priority=5)
@@ -303,17 +329,27 @@ async def handle_query_groupbuy(bot: Bot, event: Event, state: T_State, args: Me
         return
 
     project = data[group_id][project_name]
-    participant_list = "\n".join(
-        [f"{p['nickname']}\n({p['user_id']})：{p['amount']}元" for p in project['participants'].values()]
-    )
+    
+    # 构建参与成员列表，为已付款用户添加打勾符号
+    participant_list = []
+    for p in project['participants'].values():
+        paid_status = "✅" if p.get('paid', False) else ""
+        participant_list.append(f"{paid_status}{p['nickname']}\n({p['user_id']})：{p['amount']}元")
+    
+    participant_list_str = "\n".join(participant_list)
     remaining_amount = project['target_amount'] - project['total_amount']
+    
+    # 添加成团状态信息
+    completion_status = "已成团" if project.get('is_completed', False) else "未成团"
     
     response = (
         f"团购 '{project_name}' ：\n"
         f"成团金额：{project['target_amount']} 元\n"
         f"当前金额：{project['total_amount']} 元\n"
         f"剩余金额：{remaining_amount} 元\n"
-        f"参与成员：\n{participant_list if participant_list else '暂无参与成员'}"
+        f"状态：{completion_status}\n"
+        f"参与成员：\n{participant_list_str if participant_list_str else '暂无参与成员'}\n"
+        f"说明：✅表示已付款"
     )
 
     await query_groupbuy.finish(response)
@@ -510,3 +546,244 @@ async def handle_list_activity(bot: Bot, event: Event):
     else:
         await list_activity.finish(f"本群的活动：\n{activity_list}")
 
+
+# 付款登记功能
+payment_registration = on_message(priority=999)
+
+@payment_registration.handle()
+async def handle_payment_registration(bot: Bot, event: Event):
+    # 检查消息是否包含"已付款"关键词
+    message_text = event.get_plaintext()
+    if "已付款" not in message_text:
+        return
+    
+    # 检查是否包含图片
+    message_segments = event.get_message()
+    has_image = any(seg.type == "image" for seg in message_segments)
+    
+    if not has_image:
+        #await payment_registration.finish("请附带付款截图进行登记！")
+        return
+    
+    group_id = str(event.group_id)
+    user_id = str(event.user_id)
+    
+    # 查找用户参与的已成团团购
+    data = load_data()
+    
+    if group_id not in data:
+        #await payment_registration.finish("本群暂无团购活动。")
+        return
+    
+    # 查找用户参与的已成团团购
+    completed_projects = []
+    for project_name, project in data[group_id].items():
+        if (project.get('is_completed', False) and 
+            user_id in project['participants'] and 
+            not project['participants'][user_id].get('paid', False)):
+            completed_projects.append(project_name)
+    
+    if not completed_projects:
+        #await payment_registration.finish("您没有需要付款登记的已成团团购。")
+        return
+    
+    # 如果只有一个团购，直接登记
+    if len(completed_projects) == 1:
+        project_name = completed_projects[0]
+        data[group_id][project_name]['participants'][user_id]['paid'] = True
+        save_data(data)
+        
+        nickname = data[group_id][project_name]['participants'][user_id]['nickname']
+        await payment_registration.finish(f"{nickname} 的付款登记成功！")
+    if len(completed_projects) > 1:
+        # 多个团购时，需要用户指定
+        projects_list = "\n".join(f"- {name}" for name in completed_projects)
+        await payment_registration.finish(f"您有多个已成团未付款的团购，请指定具体团购名称：\n{projects_list}\n\n使用格式：已付款 <团购名称>")
+
+
+# 指定团购的付款登记功能
+payment_registration_specific = on_command("已付款", priority=5)
+
+@payment_registration_specific.handle()
+async def handle_payment_registration_specific(bot: Bot, event: Event, args: Message = CommandArg()):
+    project_name = args.extract_plain_text().strip()
+    
+    if not project_name:
+        #await payment_registration_specific.finish("请指定团购名称：已付款 <团购名称>")
+        return
+    
+    group_id = str(event.group_id)
+    user_id = str(event.user_id)
+    
+    # 检查消息是否包含图片
+    message_segments = event.get_message()
+    has_image = any(seg.type == "image" for seg in message_segments)
+    
+    if not has_image:
+        #await payment_registration_specific.finish("请附带付款截图进行登记！")
+        return
+    
+    data = load_data()
+    
+    if (group_id not in data or 
+        project_name not in data[group_id] or 
+        not data[group_id][project_name].get('is_completed', False)):
+        #await payment_registration_specific.finish(f"团购 '{project_name}' 不存在或未成团。")
+        return
+    
+    project = data[group_id][project_name]
+    
+    if user_id not in project['participants']:
+        #await payment_registration_specific.finish(f"您未参与团购 '{project_name}'。")
+        return
+    
+    if project['participants'][user_id].get('paid', False):
+        #await payment_registration_specific.finish(f"您已经完成团购 '{project_name}' 的付款登记。")
+        return
+    
+    # 登记付款
+    project['participants'][user_id]['paid'] = True
+    save_data(data)
+    
+    nickname = project['participants'][user_id]['nickname']
+    await payment_registration_specific.finish(f"{nickname} 的团购 '{project_name}' 付款登记成功！")
+
+
+# 处理回复付款截图完成登记
+reply_payment_handler = on_message(priority=999)
+
+@reply_payment_handler.handle()
+async def handle_reply_payment(bot: Bot, event: Event):
+    # 检查是否是回复消息
+    if not hasattr(event, 'reply') or not event.reply:
+        return
+    
+    # 检查回复的消息是否包含图片
+    try:
+        # 获取被回复的消息内容
+        reply_message = event.reply.message
+        reply_has_image = any(seg.type == "image" for seg in reply_message)
+        
+        if not reply_has_image:
+            return
+        
+        # 检查当前消息是否包含"已付款"关键词
+        message_text = event.get_plaintext()
+        if "已付款" not in message_text:
+            return
+        
+        group_id = str(event.group_id)
+        user_id = str(event.user_id)
+        
+        # 从当前消息中提取团购名称
+        message_parts = message_text.split()
+        project_name = None
+        
+        # 尝试从"已付款 <团购名称>"格式中提取团购名称
+        if len(message_parts) > 1:
+            project_name = message_parts[1]
+        
+        data = load_data()
+        
+        if group_id not in data:
+            await reply_payment_handler.finish("本群暂无团购活动。")
+            return
+        
+        # 如果没有指定团购名称，尝试自动匹配
+        if not project_name:
+            # 查找用户参与的已成团团购
+            completed_projects = []
+            for proj_name, project in data[group_id].items():
+                if (project.get('is_completed', False) and 
+                    user_id in project['participants'] and 
+                    not project['participants'][user_id].get('paid', False)):
+                    completed_projects.append(proj_name)
+            
+            if len(completed_projects) == 1:
+                project_name = completed_projects[0]
+                data[group_id][project_name]['participants'][user_id]['paid'] = True
+                save_data(data)
+                nickname = data[group_id][project_name]['participants'][user_id]['nickname']
+                await payment_registration.finish(f"{nickname} 的付款登记成功！")
+            elif len(completed_projects) > 1:
+                projects_list = "\n".join(f"- {name}" for name in completed_projects)
+                await reply_payment_handler.finish(f"您有多个已成团未付款的团购，请指定具体团购名称：\n{projects_list}\n\n使用格式：已付款 <团购名称>")
+                return
+            else:
+                #await reply_payment_handler.finish("您没有需要付款登记的已成团团购。")
+                return
+        
+        # 验证团购状态
+        if (project_name not in data[group_id] or 
+            not data[group_id][project_name].get('is_completed', False)):
+            #await reply_payment_handler.finish(f"团购 '{project_name}' 不存在或未成团。")
+            return
+        
+        project = data[group_id][project_name]
+        
+        if user_id not in project['participants']:
+            #await reply_payment_handler.finish(f"您未参与团购 '{project_name}'。")
+            return
+        
+        if project['participants'][user_id].get('paid', False):
+            #await reply_payment_handler.finish(f"您已经完成团购 '{project_name}' 的付款登记。")
+            return
+        
+        # 登记付款
+        project['participants'][user_id]['paid'] = True
+        save_data(data)
+        
+        nickname = project['participants'][user_id]['nickname']
+        await reply_payment_handler.finish(f"{nickname} 的团购 '{project_name}' 付款登记成功！")
+        
+    except Exception as e:
+        # 如果处理过程中出现错误，静默忽略
+        return
+
+
+# 管理员指定用户付款状态功能
+admin_set_payment = on_command("设置付款", aliases={"标记付款"}, priority=5, permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER)
+
+@admin_set_payment.handle()
+async def handle_admin_set_payment(bot: Bot, event: Event, args: Message = CommandArg()):
+    args_list = args.extract_plain_text().split()
+    if len(args_list) != 3:
+        await admin_set_payment.finish("请输入正确的格式：设置付款 <团购名称> <用户QQ号> <已付款/未付款>")
+        return
+    
+    group_id = str(event.group_id)
+    project_name = args_list[0]
+    target_user_id = args_list[1]
+    payment_status = args_list[2]
+    
+    # 验证付款状态参数
+    if payment_status not in ["已付款", "未付款"]:
+        await admin_set_payment.finish("付款状态只能设置为：已付款 或 未付款")
+        return
+    
+    # 验证用户ID是否为数字
+    if not target_user_id.isdigit():
+        await admin_set_payment.finish("用户QQ号必须是数字")
+        return
+    
+    data = load_data()
+    
+    if group_id not in data or project_name not in data[group_id]:
+        #await admin_set_payment.finish(f"未找到团购 '{project_name}'！")
+        return
+    
+    project = data[group_id][project_name]
+    
+    if target_user_id not in project['participants']:
+        #await admin_set_payment.finish(f"用户 {target_user_id} 未参与团购 '{project_name}'！")
+        return
+    
+    # 设置付款状态
+    is_paid = (payment_status == "已付款")
+    project['participants'][target_user_id]['paid'] = is_paid
+    save_data(data)
+    
+    nickname = project['participants'][target_user_id]['nickname']
+    status_text = "已付款" if is_paid else "未付款"
+    
+    await admin_set_payment.finish(f"已将用户 {nickname}({target_user_id}) 在团购 '{project_name}' 中的付款状态设置为：{status_text}")
